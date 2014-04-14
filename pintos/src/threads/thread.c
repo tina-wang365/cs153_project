@@ -212,6 +212,17 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
+/* MINE FUNCTION */
+/* Puts the thread to sleep by changing its status to block and store 
+ * the amount of ticks it will be asleep for(int64_t ticks)
+ * */
+void
+thread_sleep (void)
+{
+  
+}
+
+
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
