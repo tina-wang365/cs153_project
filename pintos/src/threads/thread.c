@@ -243,7 +243,6 @@ thread_sleep (int64_t ticks)
   list_push_back(&sleep_list, &cur->sleep_elem);
 
   thread_block(); 
-  
 
   intr_set_level (old_level);
 }
