@@ -28,6 +28,12 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* MINE */
+/* List of all sleeping threads. Sleeping threads are addded to this
+ * list when thread_sleep is called and are removed when the timer 
+ * expires. */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -92,6 +98,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -122,6 +129,7 @@ thread_start (void)
 void
 thread_tick (void) 
 {
+  thread_forsleep();
   struct thread *t = thread_current ();
 
   /* Update statistics. */
@@ -215,13 +223,29 @@ thread_create (const char *name, int priority,
 /* MINE FUNCTION */
 /* Puts the thread to sleep by changing its status to block and store 
  * the amount of ticks it will be asleep for(int64_t ticks)
+ * Puts it in the sleep list
  * */
 void
-thread_sleep (void)
+thread_sleep (int64_t ticks)
 {
+  struct thread *cur = thread_current ();
+  enum intr_level old_level;
   
-}
+  ASSERT (!intr_context ());
+  old_level = intr_disable ();
 
+  ASSERT (intr_get_level () == INTR_OFF);
+    
+  cur->sleep_ticks = ticks;
+  
+  //printf("Before thread_block()\n");
+  // putting into sleep list
+  list_push_back(&sleep_list, &cur->sleep_elem);
+
+  thread_block(); 
+
+  intr_set_level (old_level);
+}
 
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
@@ -234,7 +258,6 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
-
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -331,6 +354,35 @@ thread_yield (void)
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
+}
+
+/* MINE */
+/* Iterates through the sleep list and checks the number of ticks left
+ * in each thread. 
+ * If: thread->ticks > 0, decrement. 
+ * Else: wake up the thread
+ * */
+void
+thread_forsleep (void)
+{
+  struct list_elem *e;
+
+  //ASSERT (intr_get_level () == INTR_OFF);
+
+  for ( e = list_begin (&sleep_list); e != list_end (&sleep_list);
+        ) 
+    {
+//      printf("In thread_forsleep loop\n");
+      struct thread *t = list_entry (e, struct thread, sleep_elem);
+      if ( t->sleep_ticks > 0 ) {
+        t->sleep_ticks = t->sleep_ticks - 1;
+        e = list_next (e);
+      }
+      else { 
+        e = list_remove(e);
+        thread_unblock(t);
+      }
+    }
 }
 
 /* Invoke function 'func' on all threads, passing along 'aux'.

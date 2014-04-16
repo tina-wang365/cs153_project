@@ -9,3 +9,11 @@ blocked, and decrement time needed to sleep for by 1 tick.
 we have already added a new datatype in the threads struct.
 
 unblock the thread when time is <= 0.
+########### MUST DO ###################
+    Take out of sleep_list ( DO THIS )
+
+put timer_forsleep in a place where you know how many ticks 
+have passed, we have to relate it between timer and thread files.
+
+Look @ all the comments 
+possibly thread_tick (void)
