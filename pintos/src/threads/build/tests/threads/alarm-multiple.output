@@ -1,4 +1,4 @@
-qemu -hda /tmp/tpMJYvoLcI.dsk -m 4 -net none -nographic -monitor null
+qemu -hda /tmp/CXSWTkLnIw.dsk -m 4 -net none -nographic -monitor null
 PiLo hda1
 Loading........
 Kernel command line: -q run alarm-multiple
@@ -14,42 +14,6 @@ Executing 'alarm-multiple':
 (alarm-multiple) thread 1 sleeps 20 ticks each time, and so on.
 (alarm-multiple) If successful, product of iteration count and
 (alarm-multiple) sleep duration will appear in nondescending order.
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
-Calling thread_sleep(ticks)
 (alarm-multiple) thread 0: duration=10, iteration=1, product=10
 (alarm-multiple) thread 1: duration=20, iteration=1, product=20
 (alarm-multiple) thread 0: duration=10, iteration=2, product=20
@@ -87,8 +51,8 @@ Calling thread_sleep(ticks)
 (alarm-multiple) thread 4: duration=50, iteration=7, product=350
 (alarm-multiple) end
 Execution of 'alarm-multiple' complete.
-Timer: 578 ticks
-Thread: 551 idle ticks, 27 kernel ticks, 0 user ticks
-Console: 3963 characters output
+Timer: 577 ticks
+Thread: 550 idle ticks, 27 kernel ticks, 0 user ticks
+Console: 2955 characters output
 Keyboard: 0 keys pressed
 Powering off...
