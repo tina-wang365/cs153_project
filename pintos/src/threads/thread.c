@@ -238,7 +238,6 @@ thread_sleep (int64_t ticks)
     
   cur->sleep_ticks = ticks;
   
-  //printf("Before thread_block()\n");
   // putting into sleep list
   list_push_back(&sleep_list, &cur->sleep_elem);
 
@@ -258,6 +257,7 @@ thread_block (void)
 {
   ASSERT (!intr_context ());
   ASSERT (intr_get_level () == INTR_OFF);
+
   thread_current ()->status = THREAD_BLOCKED;
   schedule ();
 }
@@ -369,12 +369,11 @@ thread_forsleep (void)
 
   //ASSERT (intr_get_level () == INTR_OFF);
 
-  for ( e = list_begin (&sleep_list); e != list_end (&sleep_list);
-        ) 
+  for ( e = list_begin (&sleep_list); e != list_end (&sleep_list); ) 
     {
 //      printf("In thread_forsleep loop\n");
       struct thread *t = list_entry (e, struct thread, sleep_elem);
-      if ( t->sleep_ticks > 0 ) {
+      if ( t->sleep_ticks > 1 ) {
         t->sleep_ticks = t->sleep_ticks - 1;
         e = list_next (e);
       }
