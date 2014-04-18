@@ -87,7 +87,8 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    int priority;                       /* Effective Priority. */
+    int true_priority;                  /* True Priority. */ /*MINE*/
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t sleep_ticks;                /* Amount of ticks the thread is asleep for. */ /*MINE*/
 
@@ -132,6 +133,7 @@ void thread_yield (void);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
+bool compare (const struct list_elem *a, const struct list_elem *b, void *aux); /*MINE*/
 void thread_forsleep (void); /*MINE*/
 void thread_foreach (thread_action_func *, void *);
 
