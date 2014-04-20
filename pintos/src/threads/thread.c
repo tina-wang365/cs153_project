@@ -220,7 +220,24 @@ thread_create (const char *name, int priority,
   return tid;
 }
 
-/* MINE FUNCTION */
+/* MINE */
+/* A comparison function that will be used for list_less_func.
+ * If the list_elem *a is > list_elem *b: return true
+ * Else: return false
+ * */
+bool compare (const struct list_elem *a, const struct list_elem *b, void *aux) 
+{
+    struct thread *ta = list_entry (a, struct thread, sleep_elem);
+    struct thread *tb = list_entry (b, struct thread, sleep_elem);
+    if ( ta->priority > tb->priority ) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+/* MINE */
 /* Puts the thread to sleep by changing its status to block and store 
  * the amount of ticks it will be asleep for(int64_t ticks)
  * Puts it in the sleep list
@@ -230,6 +247,7 @@ thread_sleep (int64_t ticks)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
+  //list_less_func compare;
   
   ASSERT (!intr_context ());
   old_level = intr_disable ();
@@ -237,9 +255,9 @@ thread_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_OFF);
     
   cur->sleep_ticks = ticks;
-  
-  // putting into sleep list
-  list_push_back(&sleep_list, &cur->sleep_elem);
+  // Insert into sleep list from highest to lowest priority
+  list_insert_ordered(&sleep_list, &cur->sleep_elem, compare, NULL);
+  //list_push_back(&sleep_list, &cur->sleep_elem);
 
   thread_block(); 
 
@@ -356,28 +374,30 @@ thread_yield (void)
   intr_set_level (old_level);
 }
 
+
 /* MINE */
 /* Iterates through the sleep list and checks the number of ticks left
  * in each thread. 
- * If: thread->ticks > 0, decrement. 
+ * If: thread->ticks > 1, decrement. 
  * Else: wake up the thread
- * */
+ */
 void
 thread_forsleep (void)
 {
   struct list_elem *e;
-
-  //ASSERT (intr_get_level () == INTR_OFF);
-
+  list_less_func compare;
   for ( e = list_begin (&sleep_list); e != list_end (&sleep_list); ) 
     {
-//      printf("In thread_forsleep loop\n");
       struct thread *t = list_entry (e, struct thread, sleep_elem);
+      // Still sleeping, decrement and go to next
       if ( t->sleep_ticks > 1 ) {
         t->sleep_ticks = t->sleep_ticks - 1;
         e = list_next (e);
       }
+      // Time to wake up
       else { 
+        //e = list_max(&sleep_list, compare, NULL);
+        //t = list_entry(e, struct thread, sleep_elem);
         e = list_remove(e);
         thread_unblock(t);
       }
@@ -401,11 +421,25 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* MINE -- EDITED */
+/* Sets the current thread's priority to NEW_PRIORITY. 
+ * If the current thread's priority is no longer the highest,
+ * the thread yields.
+ * */
 void
 thread_set_priority (int new_priority) 
 {
+  struct list_elem *e;
+
   thread_current ()->priority = new_priority;
+
+  for (e = list_begin (&all_list); e != list_end (&all_list); 
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if ( thread_current()->priority < t->priority )
+        thread_yield();
+    }
 }
 
 /* Returns the current thread's priority. */
@@ -530,6 +564,8 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  // True priority initialized to effective priority
+  t->true_priority = t->priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
 }
