@@ -247,7 +247,7 @@ thread_sleep (int64_t ticks)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  //list_less_func compare;
+  list_less_func compare;
   
   ASSERT (!intr_context ());
   old_level = intr_disable ();
@@ -291,13 +291,15 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+  list_less_func compare;
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+//  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered(&ready_list, &t->elem, compare, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -363,12 +365,13 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
+  list_less_func compare; 
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered(&ready_list, &cur->elem, compare, NULL); 
+//    list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -429,17 +432,27 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  struct list_elem *e;
-
   thread_current ()->priority = new_priority;
 
-  for (e = list_begin (&all_list); e != list_end (&all_list); 
+  list_less_func compare;
+//  bool stillHighest = true;
+
+  //sort list before traversing 
+  list_sort(&ready_list, compare, NULL);  
+
+  struct list_elem *e;
+  for (e = list_begin (&ready_list); e != list_end (&ready_list); 
        e = list_next (e))
     {
-      struct thread *t = list_entry (e, struct thread, allelem);
-      if ( thread_current()->priority < t->priority )
+      struct thread *t = list_entry (e, struct thread, elem);
+      if ( new_priority < t->priority ) {
+//        stillHighest = false;
         thread_yield();
-    }
+      }
+    }  
+    
+//  if (!stillHighest)
+//    thread_yield(); 
 }
 
 /* Returns the current thread's priority. */
@@ -555,6 +568,7 @@ is_thread (struct thread *t)
 static void
 init_thread (struct thread *t, const char *name, int priority)
 {
+  list_less_func compare;
   ASSERT (t != NULL);
   ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
   ASSERT (name != NULL);
@@ -564,9 +578,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+
   // True priority initialized to effective priority
   t->true_priority = t->priority;
+
   t->magic = THREAD_MAGIC;
+//  list_insert_ordered (&all_list, &t->allelem, compare, NULL);
   list_push_back (&all_list, &t->allelem);
 }
 
