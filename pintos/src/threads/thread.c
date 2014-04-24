@@ -188,6 +188,7 @@ thread_create (const char *name, int priority,
   if (t == NULL)
     return TID_ERROR;
 
+
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
@@ -214,8 +215,14 @@ thread_create (const char *name, int priority,
 
   intr_set_level (old_level);
 
+ // printf("Inside thread_create(), priority is: %d", t->priority);
   /* Add to run queue. */
   thread_unblock (t);
+ //printf("Inside thread_create(), outputting running_thread() priority: %d", running_thread()->priority);
+
+/*----MINE----*/ 
+  if(running_thread()->priority < priority)
+	thread_yield();
 
   return tid;
 }
@@ -238,7 +245,7 @@ bool compare (const struct list_elem *a, const struct list_elem *b, void *aux)
 }
 
 /* MINE */
-/* Puts the thread to sleep by changing its status to block and store 
+/*Puts the thread to sleep by changing its status to block and store 
  * the amount of ticks it will be asleep for(int64_t ticks)
  * Puts it in the sleep list
  * */
@@ -254,7 +261,7 @@ thread_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_OFF);
     
-  cur->sleep_ticks = ticks;
+ cur->sleep_ticks = ticks;
   // Insert into sleep list from highest to lowest priority
   list_insert_ordered(&sleep_list, &cur->sleep_elem, compare, NULL);
   //list_push_back(&sleep_list, &cur->sleep_elem);
@@ -435,10 +442,10 @@ thread_set_priority (int new_priority)
   thread_current ()->priority = new_priority;
 
   list_less_func compare;
-//  bool stillHighest = true;
+  bool stillHighest = true;
 
   //sort list before traversing 
-  list_sort(&ready_list, compare, NULL);  
+//  list_sort(&ready_list, compare, NULL);  
 
   struct list_elem *e;
   for (e = list_begin (&ready_list); e != list_end (&ready_list); 
@@ -446,20 +453,20 @@ thread_set_priority (int new_priority)
     {
       struct thread *t = list_entry (e, struct thread, elem);
       if ( new_priority < t->priority ) {
-//        stillHighest = false;
+        stillHighest = false;
         thread_yield();
       }
     }  
     
-//  if (!stillHighest)
-//    thread_yield(); 
+  if (!stillHighest)
+    thread_yield(); 
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  return running_thread()->true_priority;//thread_current ()->true_priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -578,7 +585,6 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-
   // True priority initialized to effective priority
   t->true_priority = t->priority;
 

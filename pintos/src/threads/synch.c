@@ -94,7 +94,7 @@ sema_try_down (struct semaphore *sema)
       sema->value--;
       success = true; 
     }
-  else
+else
     success = false;
   intr_set_level (old_level);
 
@@ -105,17 +105,50 @@ sema_try_down (struct semaphore *sema)
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
+/*compare the current thread's priority with the priorities of all the threads*/
+/*  */
 void
 sema_up (struct semaphore *sema) 
 {
   enum intr_level old_level;
-
+//  struct thread * t;
+//  struct thread *  highest_t;
   ASSERT (sema != NULL);
-
+//  struct list_elem *highest_elem;   
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
+  //bool highest = true;
+//  struct list_elem *e;
+/* if(!list_empty(&sema->waiters)) {
+  printf("Before for loop to check list of waiters");
+  for (e = list_begin (&sema->waiters); e != list_end (&sema->waiters); 
+       e = list_next (e))
+    { 
+      printf("inside of LOOP to check list of waiters");
+      t = list_entry (e, struct thread, elem);
+      if ( thread_current()->priority < t->priority ) {
+        //highest = t->priority;
+ 	highest_t = &t;
+	highest_elem = e;
+        thread_yield();
+	printf("inside of IF statement in LOOP to check list of waiters");
+      }
+    }
+   printf("outside of LOOP to check list of waiters");
+  }
+    list_remove(highest_elem); 
+    thread_unblock(highest_t);
+*/
+    
+  //if (!stillHighest)
+  //  thread_yield(); 
+
+
+ if (!list_empty (&sema->waiters))
+ {
+    
+   thread_unblock(list_entry (list_pop_front (&sema->waiters), struct thread, elem));
+ }
+
   sema->value++;
   intr_set_level (old_level);
 }
@@ -198,6 +231,9 @@ lock_acquire (struct lock *lock)
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+
+ 
+ // enum intr_level old_level;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -233,6 +269,8 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+  // if(lock->holder->priority < temp->priority)
+//	thread_yield();
 }
 
 /* Returns true if the current thread holds LOCK, false
