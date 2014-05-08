@@ -18,9 +18,12 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
+//const int MAX_ARGS = 128;
+const int DEFAULT_ARGV = 128;
+const int WORD_SIZE = 4;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
-
+char ** cmdline;
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -37,14 +40,44 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-
+/*MINE*/
+  char * saveptr;
+  file_name = strtok_r((char*)file_name, " " , &saveptr);
+/*END MINE*/
+//  int i = 0; 
+//   printf("THIS IS THE FILE_NAME: %s\n", file_name);
+//   cmdline = &file_name;
+/*
+  while(saveptr != '\0')
+  {
+     char * arg = strtok_r((char*)saveptr, " ", &saveptr);
+     cmdline = cmdline + i;
+     cmdline = arg;
+     ++i;
+     
+  }
+*/
+/*END_MINE*/
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy); 
   return tid;
 }
-
+/*MY CODE*/
+//THis function will go through a list of arguments and process what each
+//argument does.
+/*tid_t my_process_execute (const char * cmdline)
+{
+	const char * argument = cmdline;
+	const * iter;
+	
+	int argc = 0;
+	unsigned char i;
+	
+	//tokenize arguments:tabp
+}
+*/
 /* A thread function that loads a user process and starts it
    running. */
 static void
@@ -53,14 +86,44 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
-
+  /*MINE*/
+  char * saveptr;
+  file_name = strtok_r((char*) file_name, " ", &saveptr);
+  /*END_MINE*/
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+/*  size_t token_length = sizeof(*file_name);
+  if_.esp += token_length;
+  memcpy(if_.esp, &file_name, token_length);
+  hex_dump(0,if_.esp, sizeof(if_.esp), true);
+  strtok_r((char*) file_name, " ", &saveptr);
+  printf("STACK POINTER: %s\n", if_.esp);
+  while(*saveptr != '\0') {
+  	size_t token_length = sizeof(*file_name);
+  	if_.esp += token_length;
+	memcpy(if_.esp, &file_name, token_length);
+    hex_dump(0,if_.esp, sizeof(if_.esp), true);
+    strtok_r((char*) file_name, " ", &saveptr);
+    printf("STACK POINTER: %s\n", if_.esp);
+ 
+   }
+  */
   success = load (file_name, &if_.eip, &if_.esp);
-
+  /*MINE*/
+  if(success)
+  {
+	thread_current()->load = LOADED;
+  }
+  else
+  {
+	thread_current()->load = LOAD_FAIL;
+  }
+  //cp stands for "Child Process"
+  sema_up(&thread_current()->cp->load_sema);
+  /*END_MINE*/
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -133,6 +196,7 @@ process_activate (void)
 }
 
 /* We load ELF binaries.  The following definitions are taken
+ 
    from the ELF specification, [ELF1], more-or-less verbatim.  */
 
 /* ELF types.  See [ELF1] 1-2. */
@@ -195,7 +259,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, const char * filename, char ** saveptr);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -300,9 +364,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-
+  char ** saveptr;
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, file_name, saveptr))
     goto done;
 
   /* Start address. */
@@ -427,7 +491,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp) 
+setup_stack (void **esp, const char * filename, char **saveptr) 
 {
   uint8_t *kpage;
   bool success = false;
@@ -436,11 +500,68 @@ setup_stack (void **esp)
   if (kpage != NULL) 
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success)
-        *esp = PHYS_BASE;
+      if (success) { 
+        *esp = PHYS_BASE - 12;
+      }	
       else
         palloc_free_page (kpage);
     }
+  char * token; char ** argv = malloc(DEFAULT_ARGV * sizeof(char *));
+  char ** cont = malloc(DEFAULT_ARGV * sizeof(char *));
+  int i, argc = 0, arg_size = DEFAULT_ARGV;
+  for(token = (char *) filename; token != NULL; token = strtok_r(NULL, " ", &saveptr))
+  {
+    cont[argc] = token;
+    argc++;
+    if(argc >= arg_size) {
+      arg_size *= 2;
+      cont = realloc (cont, arg_size * sizeof(char *));
+      argv = realloc(argv, arg_size * sizeof(char *));
+    }
+  }
+  int j;
+  for(j = argc - 1; j >= 0; j--)
+  {
+      *esp -= strlen(cont[j] + 1);
+      argv[j] = *esp;
+      memcpy(*esp, cont[j], strlen(cont[j] + 1));
+  }
+  argv[argc] = 0;
+  i = (size_t) * esp % WORD_SIZE;
+  if(i)
+  {
+      *esp -= i;
+      memcpy(*esp, & argv[argc], i);
+  }
+  int k;
+  for(k = argc; k >= 0; k--)
+  {
+      *esp -= sizeof(char *);
+      memcpy(*esp, & argv[k], sizeof(char *));
+  }
+      /* put argv on the stack */
+      token = * esp; *esp -= sizeof(char**);
+      memcpy(*esp, & token, sizeof(char**));
+      /*put argc on stack*/
+      *esp -= sizeof(int); 
+      memcpy(*esp, &argc, sizeof(int));
+    /* put fake address in stack*/
+      *esp -= sizeof(void *);
+      memcpy(*esp, &argv[argc], sizeof(void *));
+      free(argv); free(cont);
+    /*call hex dump*/
+    hex_dump(0, esp, sizeof(esp), true);
+
+    /*
+    argv[argc] = 0;
+    i = (size_t) * esp % WORD_SIZE // word align 
+    if(i)
+    {
+        *esp -= i;
+        memcpy(*esp, & argv[argc], i);
+    }
+    */
+  
   return success;
 }
 
