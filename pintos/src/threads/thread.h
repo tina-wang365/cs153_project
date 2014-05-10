@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -11,7 +12,9 @@ enum thread_status
     THREAD_RUNNING,     /* Running thread. */
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
-    THREAD_DYING        /* About to be destroyed. */
+    THREAD_DYING,       /* About to be destroyed. */
+    LOADED,
+    LOAD_FAIL 
   };
 
 /* Thread identifier type.
@@ -85,10 +88,12 @@ struct thread
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
+    enum thread_status load;            /* Thread load state */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Effective Priority. */
     int true_priority;                  /* True Priority. */ /*MINE*/
+    struct child_process *cp;           /* MINE */
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t sleep_ticks;                /* Amount of ticks the thread is asleep for. */ /*MINE*/
 
@@ -105,6 +110,11 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+struct child_process {
+// bool load;
+ struct semaphore load_sema;   
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
