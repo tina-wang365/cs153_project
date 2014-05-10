@@ -3,7 +3,9 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-
+/* MINE */
+#include "devices/shutdown.h" 
+/* END MINE */
 static void syscall_handler (struct intr_frame *);
 
 void
@@ -15,6 +17,10 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  printf ("system call!\n");
-  thread_exit ();
+  switch ( (int) f->esp ) 
+  {
+      case SYS_HALT: {
+        shutdown_power_off();
+      }
+  }
 }

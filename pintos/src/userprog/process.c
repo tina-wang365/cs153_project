@@ -17,12 +17,13 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/synch.h"
 
 //const int MAX_ARGS = 128;
-const int DEFAULT_ARGV = 128;
+const int DEFAULT_ARGV = 2;
 const int WORD_SIZE = 4;
 static thread_func start_process NO_RETURN;
-static bool load (const char *cmdline, void (**eip) (void), void **esp);
+static bool load (const char *cmdline, void (**eip) (void), void **esp, char **saveptr);
 char ** cmdline;
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -64,20 +65,7 @@ process_execute (const char *file_name)
     palloc_free_page (fn_copy); 
   return tid;
 }
-/*MY CODE*/
-//THis function will go through a list of arguments and process what each
-//argument does.
-/*tid_t my_process_execute (const char * cmdline)
-{
-	const char * argument = cmdline;
-	const * iter;
-	
-	int argc = 0;
-	unsigned char i;
-	
-	//tokenize arguments:tabp
-}
-*/
+
 /* A thread function that loads a user process and starts it
    running. */
 static void
@@ -111,7 +99,7 @@ start_process (void *file_name_)
  
    }
   */
-  success = load (file_name, &if_.eip, &if_.esp);
+  success = load (file_name, &if_.eip, &if_.esp, &saveptr);
   /*MINE*/
   if(success)
   {
@@ -122,7 +110,7 @@ start_process (void *file_name_)
 	thread_current()->load = LOAD_FAIL;
   }
   //cp stands for "Child Process"
-  sema_up(&thread_current()->cp->load_sema);
+  //sema_up(&thread_current()->cp->load_sema);
   /*END_MINE*/
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -270,7 +258,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
    and its initial stack pointer into *ESP.
    Returns true if successful, false otherwise. */
 bool
-load (const char *file_name, void (**eip) (void), void **esp) 
+load (const char *file_name, void (**eip) (void), void **esp, char **saveptr) 
 {
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
@@ -364,7 +352,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
           break;
         }
     }
-  char ** saveptr;
+  //char ** saveptr;
   /* Set up stack. */
   if (!setup_stack (esp, file_name, saveptr))
     goto done;
@@ -501,15 +489,18 @@ setup_stack (void **esp, const char * filename, char **saveptr)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) { 
-        *esp = PHYS_BASE - 12;
+        *esp = PHYS_BASE;// - 12;
       }	
-      else
+      else {
         palloc_free_page (kpage);
+        return success;
+      }
     }
-  char * token; char ** argv = malloc(DEFAULT_ARGV * sizeof(char *));
+  char * token; 
+  char ** argv = malloc(DEFAULT_ARGV * sizeof(char *));
   char ** cont = malloc(DEFAULT_ARGV * sizeof(char *));
   int i, argc = 0, arg_size = DEFAULT_ARGV;
-  for(token = (char *) filename; token != NULL; token = strtok_r(NULL, " ", &saveptr))
+  for(token = (char *) filename; token != NULL; token = strtok_r(NULL, " ", saveptr))
   {
     cont[argc] = token;
     argc++;
@@ -522,7 +513,7 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   int j;
   for(j = argc - 1; j >= 0; j--)
   {
-      *esp -= strlen(cont[j] + 1);
+      *esp -= strlen(cont[j]) + 1;
       argv[j] = *esp;
       memcpy(*esp, cont[j], strlen(cont[j] + 1));
   }
@@ -539,29 +530,23 @@ setup_stack (void **esp, const char * filename, char **saveptr)
       *esp -= sizeof(char *);
       memcpy(*esp, & argv[k], sizeof(char *));
   }
-      /* put argv on the stack */
-      token = * esp; *esp -= sizeof(char**);
-      memcpy(*esp, & token, sizeof(char**));
-      /*put argc on stack*/
-      *esp -= sizeof(int); 
-      memcpy(*esp, &argc, sizeof(int));
-    /* put fake address in stack*/
-      *esp -= sizeof(void *);
-      memcpy(*esp, &argv[argc], sizeof(void *));
-      free(argv); free(cont);
-    /*call hex dump*/
-    hex_dump(0, esp, sizeof(esp), true);
+  /* Put argv on the stack */
+  token = * esp;
+  *esp -= sizeof(char**);
+  memcpy(*esp, &token, sizeof(char**));
 
-    /*
-    argv[argc] = 0;
-    i = (size_t) * esp % WORD_SIZE // word align 
-    if(i)
-    {
-        *esp -= i;
-        memcpy(*esp, & argv[argc], i);
-    }
-    */
-  
+  /* Put argc on stack */
+  *esp -= sizeof(int); 
+  memcpy(*esp, &argc, sizeof(int));
+
+  /* Put fake address in stack */
+  *esp -= sizeof(void *);
+  memcpy(*esp, &argv[argc], sizeof(void *));
+  free(argv); free(cont);
+
+  /* Call hex dump */
+  //hex_dump(0, esp, sizeof(esp), true);
+
   return success;
 }
 
