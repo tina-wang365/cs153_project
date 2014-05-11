@@ -73,6 +73,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_OPEN: {
+        grab_stack_args(f, &argv[0], 1);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = open((const char *) argv[0]);
         break;
     }
     case SYS_FILESIZE: {
@@ -139,6 +142,16 @@ struct file * get_file(int fd)
     return NULL;
 }
 
+int p_add_file(struct file * f)
+{
+    struct p_file *pf = malloc(sizeof(struct p_file));
+    pf->file = f;
+    pf->fd = thread_current()->fd;
+    thread_current()->fd + 1;
+    list_push_back(&thread_current()->file_list, &pf->elem);
+    return pf->fd;
+}
+
 int write (int fd, const void *buffer, unsigned length) {
     if(fd == STDOUT_FILENO)
     {
@@ -195,4 +208,20 @@ bool remove (const char *file) {
     bool status = filesys_remove(file);
     lock_release(&fs_lock);
     return status;
+}
+
+int open(const char * file)
+{
+    lock_acquire(&fs_lock);
+    struct file * f_tmp = filesys_open(file);
+    if(!f_tmp)
+    {
+        lock_release(&fs_lock);
+        exit(-1);
+    }
+    
+    int fd = p_add_file(f_tmp);
+    lock_release(&fs_lock);
+    
+    return fd;
 }
