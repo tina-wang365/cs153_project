@@ -11,6 +11,7 @@
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
+#include "threads/malloc.h"
 
 static void syscall_handler (struct intr_frame *);
 struct lock fs_lock;
@@ -28,6 +29,8 @@ struct p_file {
 void validate_ptr (const void *vaddr); 
 void validate_buf (void *buf, unsigned size);
 int user_to_kernel_ptr(const void *vaddr);
+int add_file(struct file * f);
+void p_close_file(int fd);
 /* END MINE */
 void
 syscall_init (void) 
@@ -75,26 +78,26 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_OPEN: {
         grab_stack_args(f, &argv[0], 1);
         argv[0] = user_to_kernel_ptr((const void *) argv[0]);
-        f->eax = open((const char *) argv[0]);
+        f->eax = open((const char *) argv[0]); 
         break;
     }
     case SYS_FILESIZE: {
         grab_stack_args(f, &argv[0], 1);
-        f->eax = filesize(argv[0]);
+        f->eax = filesize(argv[0]); 
         break;
     }
     case SYS_READ: {
-        grab_stack_args(f, &argv[0], 1);
+/*        grab_stack_args(f, &argv[0], 1);
         validate_buf((void *) argv[1], (unsigned) argv[2]);
-        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
-        f->eax = read(argv[0], (const void *) argv[1], (unsigned)argv[2]);
+        argv[1] = user_to_kernel_ptr((void *) argv[1]);
+        f->eax = read(argv[0], (void *) argv[1], (unsigned)argv[2]);  */
         break;
     }
     case SYS_WRITE: {
         grab_stack_args(f, &argv[0], 3);
         validate_buf((void *) argv[1], (unsigned) argv[2]);
         argv[1] = user_to_kernel_ptr((const void *) argv[1]);
-        f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]);
+        f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]); 
         break;
     }
     case SYS_SEEK: {
@@ -104,8 +107,8 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_CLOSE: {
-        grab_stack_args(f, &argv[0], 1);
-        close(argv[0]);
+       grab_stack_args(f, &argv[0], 1);
+        close(argv[0]); 
         break;
     }
   }
@@ -213,11 +216,12 @@ int filesize (int fd)
     return size;
     
 }
+
 int read (int fd, void * buffer, unsigned size)
 {
     if(fd == STDIN_FILENO)
     {
-        int index;
+        unsigned index;
         uint8_t* buf_temp = (uint8_t *) buffer;
         for(index = 0; index < size; ++index)
         {
@@ -236,6 +240,7 @@ int read (int fd, void * buffer, unsigned size)
     lock_release(&fs_lock);
     return bytes;
 }
+
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
 {
     int index;
@@ -283,7 +288,7 @@ int open(const char * file)
     if(f_tmp == NULL)
     {
         lock_release(&fs_lock);
-        exit(0);
+        return -1;
     }
     
     int fd = add_file(f_tmp);
