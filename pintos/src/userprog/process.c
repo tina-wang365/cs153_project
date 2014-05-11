@@ -130,9 +130,22 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid ) 
 {
-    process_wait_help(child_tid);
+    if (child_tid > 0xffff || child_tid < 0)
+        return -1;
+    int status = 0;
+    while ( status == THREAD_RUNNING || status == THREAD_READY || status == THREAD_BLOCKED ) {
+        struct thread *t = find_thread(child_tid);
+        if (t) {
+            thread_yield();
+            status = t->status;            
+        }
+        else {
+            return -1; 
+        }
+    }  
+    return status;
 }
 
 /* Free the current process's resources. */
@@ -526,8 +539,8 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   }
 
   int k;
-  for (k = 0; k < argc; k++)
-//  for(k = argc; k >= 0; k--)
+  //for (k = 0; k < argc; k++)
+  for(k = argc; k >= 0; --k)
   {
       *esp -= sizeof(char *);
       counter += sizeof(char *);
@@ -547,13 +560,13 @@ setup_stack (void **esp, const char * filename, char **saveptr)
 
   /* Put fake address in stack */
   *esp -= sizeof(void *);
-  counter += sizeof(int);
+  counter += sizeof(void *);
   memcpy(*esp, &argv[argc], sizeof(void *));
   free(argv); 
   free(cont);
 
   /* Call hex dump */
-  hex_dump(0, *esp, counter, true);
+ // hex_dump(0, *esp, counter, true);
 
   return success;
 }

@@ -17,7 +17,7 @@ struct lock fs_lock;
 
 struct file * get_file(int fd UNUSED);
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args);
-#define USER_VADDR_BOTTOM (void *) 0x08084000
+#define USER_VADDR_BOTTOM (void *) 0x08048000
 
 struct p_file {
     struct file *file;
@@ -25,6 +25,9 @@ struct p_file {
     struct list_elem elem;
 };
 
+void validate_ptr (const void *vaddr); 
+void validate_buf (void *buf, unsigned size);
+int user_to_kernel_ptr(const void *vaddr);
 /* END MINE */
 void
 syscall_init (void) 
@@ -37,6 +40,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   int argv[3]; //mine
+  //validate_ptr((const void*)f->esp);
   switch ( * (int*) f->esp ) 
   {
     case SYS_HALT: {
@@ -57,9 +61,15 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_CREATE: {
+        grab_stack_args(f, &argv[0], 2);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = create((const char *) argv[0], (unsigned)argv[1]);
         break;
     }
     case SYS_REMOVE: {
+        grab_stack_args(f, &argv[0], 1);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = remove((const char *) argv[0]);
         break;
     }
     case SYS_OPEN: {
@@ -73,6 +83,7 @@ syscall_handler (struct intr_frame *f UNUSED)
     }
     case SYS_WRITE: {
         grab_stack_args(f, &argv[0], 3);
+        validate_buf((void *) argv[1], (unsigned) argv[2]);
         argv[1] = user_to_kernel_ptr((const void *) argv[1]);
         f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]);
         break;
@@ -86,12 +97,6 @@ syscall_handler (struct intr_frame *f UNUSED)
     case SYS_CLOSE: {
         break;
     }
-    default: {
-        grab_stack_args(f, &argv[0], 3);
-        argv[1] = user_to_kernel_ptr((const void *) argv[1]);
-        f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]);
-        break;
-    }
   }
 }
 
@@ -100,9 +105,7 @@ void halt (void) {
 }
 
 void exit (int status) {
-    struct thread * t = thread_current();
-    t->status = status;
-    printf("Exit status: %d", status);
+    printf("%s: exit(%d)\n", thread_current()->name, status);
     thread_exit();
 }
 
@@ -111,15 +114,12 @@ int wait (pid_t pid) {
 }
 
 int user_to_kernel_ptr(const void *vaddr) {
-    if (!is_user_vaddr(vaddr)) {
-        thread_exit();
-        return 0;
-    }
+    validate_ptr(vaddr);
+
     void *ptr = pagedir_get_page(thread_current()->pagedir, vaddr);
 
     if (!ptr) {
-        thread_exit();
-        return 0;
+        exit(-1);
     }
     return (int) ptr;
 }
@@ -142,17 +142,18 @@ struct file * get_file(int fd)
 int write (int fd, const void *buffer, unsigned length) {
     if(fd == STDOUT_FILENO)
     {
-        putbuf(buffer, (size_t)length);
-        return (int)length;
+        putbuf(buffer, length);
+        return length;
     }
     lock_acquire(&fs_lock);
+
     struct file * file_to_write = get_file(fd);
     if (!file_to_write) {
         lock_release(&fs_lock);
         return -1;
     }
     int bytes = file_write(file_to_write, buffer, length);
-    lock_release(&fs_lock);
+    lock_release(&fs_lock); 
     return bytes;    
 }
 
@@ -163,8 +164,35 @@ void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
     for(index = 0; index < num_args; ++index)
     {
         ptr = (int *) f->esp + index + 1;
-        //validate_ptr((const void *) ptr);
+        validate_ptr((const void *) ptr);
         arg[index] = *ptr;
     }
 }
 
+void validate_ptr (const void *vaddr) {
+    if (!is_user_vaddr(vaddr) || (vaddr < USER_VADDR_BOTTOM) /*vaddr < (void*)0x08048000*/) {
+        exit(-1);
+    }
+}
+
+void validate_buf (void *buf, unsigned size) {
+    unsigned i;
+    void *local_buf = (void *) buf;
+    for (i = 0; i < size; ++i) {
+        validate_ptr((const void*) local_buf);
+        local_buf++;
+    }
+}
+
+bool create (const char *file, unsigned initial_size) {
+    lock_acquire(&fs_lock);
+    bool status = filesys_create(file, initial_size);
+    lock_release(&fs_lock);
+    return status;
+}
+bool remove (const char *file) {
+    lock_acquire(&fs_lock);
+    bool status = filesys_remove(file);
+    lock_release(&fs_lock);
+    return status;
+}
