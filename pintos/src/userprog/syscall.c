@@ -40,7 +40,7 @@ static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
   int argv[3]; //mine
-  //validate_ptr((const void*)f->esp);
+  //validate_ptr((const void*)f->esp)
   switch ( * (int*) f->esp ) 
   {
     case SYS_HALT: {
@@ -79,9 +79,15 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_FILESIZE: {
+        grab_stack_args(f, &argv[0], 1);
+        f->eax = filesize(argv[0]);
         break;
     }
     case SYS_READ: {
+        grab_stack_args(f, &argv[0], 1);
+        validate_buf((void *) argv[1], (unsigned) argv[2]);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = read(argv[0], (const void *) argv[1], (unsigned)argv[2]);
         break;
     }
     case SYS_WRITE: {
@@ -98,6 +104,8 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_CLOSE: {
+        grab_stack_args(f, &argv[0], 1);
+        close(argv[0]);
         break;
     }
   }
@@ -142,24 +150,45 @@ struct file * get_file(int fd)
     return NULL;
 }
 
-int p_add_file(struct file * f)
+int add_file(struct file * f)
 {
     struct p_file *pf = malloc(sizeof(struct p_file));
     pf->file = f;
     pf->fd = thread_current()->fd;
-    thread_current()->fd + 1;
+    thread_current()->fd += 1;
     list_push_back(&thread_current()->file_list, &pf->elem);
     return pf->fd;
 }
 
+void p_close_file(int fd)
+{
+    struct thread * t = thread_current();
+    struct list_elem * e;
+    for(e = list_begin(&t->file_list); e != list_end(&t->file_list); e = list_next(e))
+    {
+        struct p_file *pf = list_entry(e, struct p_file, elem);
+        if(fd == pf->fd || fd == -1) //all closed files
+        {
+            file_close(pf->file);
+            list_remove(&pf->elem);
+            free(pf);
+            if( fd != -1) {
+            
+
+                return;
+            }
+        }
+    }
+}
 int write (int fd, const void *buffer, unsigned length) {
+    //file descriptor for std out
     if(fd == STDOUT_FILENO)
     {
         putbuf(buffer, length);
         return length;
     }
+    /*write the contents of the buffer to the file to write*/
     lock_acquire(&fs_lock);
-
     struct file * file_to_write = get_file(fd);
     if (!file_to_write) {
         lock_release(&fs_lock);
@@ -170,6 +199,43 @@ int write (int fd, const void *buffer, unsigned length) {
     return bytes;    
 }
 
+int filesize (int fd)
+{
+    lock_acquire(&fs_lock);
+    struct file * f_temp = get_file(fd);
+    if(f_temp == NULL)
+    {
+        lock_release(&fs_lock);
+        return -1;
+    }
+    int size = file_length(f_temp);
+    lock_release(&fs_lock);
+    return size;
+    
+}
+int read (int fd, void * buffer, unsigned size)
+{
+    if(fd == STDIN_FILENO)
+    {
+        int index;
+        uint8_t* buf_temp = (uint8_t *) buffer;
+        for(index = 0; index < size; ++index)
+        {
+            buf_temp[index] = input_getc();
+        }
+        return size;
+    }
+    lock_acquire(&fs_lock);
+    struct file * f_temp = get_file(fd);
+    if(f_temp == NULL)
+    {
+        lock_release(&fs_lock);
+        return -1;
+    }
+    int bytes = file_read(f_temp, buffer, size);
+    lock_release(&fs_lock);
+    return bytes;
+}
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
 {
     int index;
@@ -214,14 +280,23 @@ int open(const char * file)
 {
     lock_acquire(&fs_lock);
     struct file * f_tmp = filesys_open(file);
-    if(!f_tmp)
+    if(f_tmp == NULL)
     {
         lock_release(&fs_lock);
-        exit(-1);
+        exit(0);
     }
     
-    int fd = p_add_file(f_tmp);
+    int fd = add_file(f_tmp);
     lock_release(&fs_lock);
-    
+  
     return fd;
 }
+
+void close(int fd)
+{
+    lock_acquire(&fs_lock);
+    p_close_file(fd);
+    lock_release(&fs_lock);
+}
+
+
