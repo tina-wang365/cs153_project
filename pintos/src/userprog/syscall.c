@@ -61,9 +61,15 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_CREATE: {
+        grab_stack_args(f, &argv[0], 2);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = create((const char *) argv[0], (unsigned)argv[1]);
         break;
     }
     case SYS_REMOVE: {
+        grab_stack_args(f, &argv[0], 1);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = remove((const char *) argv[0]);
         break;
     }
     case SYS_OPEN: {
@@ -134,17 +140,6 @@ struct file * get_file(int fd)
 }
 
 int write (int fd, const void *buffer, unsigned length) {
-
-/*    lock_acquire(&fs_lock);
-    if (fd == STDOUT_FILENO) {
-        int i;
-        int buf_size = 256;
-        for ( i = length/buf_size; i > 0; --i ) {
-            putbuf(buffer,length);
-            return length;
-        }
-    } */
-
     if(fd == STDOUT_FILENO)
     {
         putbuf(buffer, length);
@@ -189,3 +184,15 @@ void validate_buf (void *buf, unsigned size) {
     }
 }
 
+bool create (const char *file, unsigned initial_size) {
+    lock_acquire(&fs_lock);
+    bool status = filesys_create(file, initial_size);
+    lock_release(&fs_lock);
+    return status;
+}
+bool remove (const char *file) {
+    lock_acquire(&fs_lock);
+    bool status = filesys_remove(file);
+    lock_release(&fs_lock);
+    return status;
+}
