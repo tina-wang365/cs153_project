@@ -87,10 +87,10 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_READ: {
-/*        grab_stack_args(f, &argv[0], 1);
+        grab_stack_args(f, &argv[0], 3);
         validate_buf((void *) argv[1], (unsigned) argv[2]);
         argv[1] = user_to_kernel_ptr((void *) argv[1]);
-        f->eax = read(argv[0], (void *) argv[1], (unsigned)argv[2]);  */
+        f->eax = read(argv[0], (void *) argv[1], (unsigned)argv[2]);  
         break;
     }
     case SYS_WRITE: {
@@ -214,7 +214,6 @@ int filesize (int fd)
     int size = file_length(f_temp);
     lock_release(&fs_lock);
     return size;
-    
 }
 
 int read (int fd, void * buffer, unsigned size)
@@ -228,9 +227,11 @@ int read (int fd, void * buffer, unsigned size)
             buf_temp[index] = input_getc();
         }
         return size;
-    }
+    } 
+    //else {
     lock_acquire(&fs_lock);
     struct file * f_temp = get_file(fd);
+    
     if(f_temp == NULL)
     {
         lock_release(&fs_lock);
@@ -238,7 +239,9 @@ int read (int fd, void * buffer, unsigned size)
     }
     int bytes = file_read(f_temp, buffer, size);
     lock_release(&fs_lock);
+//    return 0;
     return bytes;
+   // }
 }
 
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
@@ -290,7 +293,6 @@ int open(const char * file)
         lock_release(&fs_lock);
         return -1;
     }
-    
     int fd = add_file(f_tmp);
     lock_release(&fs_lock);
   
