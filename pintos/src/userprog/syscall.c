@@ -9,12 +9,21 @@
 #include "threads/vaddr.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
-//#include "userprog/pagedir.h"
-//#include "userprog/process.h"
+#include "userprog/process.h"
+#include "userprog/pagedir.h"
+
 static void syscall_handler (struct intr_frame *);
 struct lock fs_lock;
 
+struct file * get_file(int fd UNUSED);
+void grab_stack_args(struct intr_frame * f, int * arg, int num_args);
 #define USER_VADDR_BOTTOM (void *) 0x08084000
+
+struct p_file {
+    struct file *file;
+    int fd;
+    struct list_elem elem;
+};
 
 /* END MINE */
 void
@@ -27,20 +36,24 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-   int argv[3]; //mine
-  switch ( (int) f->esp ) 
+  int argv[3]; //mine
+  switch ( * (int*) f->esp ) 
   {
     case SYS_HALT: {
         halt();
         break;
     }
     case SYS_EXIT: {
+        grab_stack_args(f, &argv[0], 1);
+        exit(argv[0]);
         break;
     }
     case SYS_EXEC: {
         break;
     }
     case SYS_WAIT: {
+        grab_stack_args(f, &argv[0], 1);
+        f->eax = wait(argv[0]);
         break;
     }
     case SYS_CREATE: {
@@ -59,15 +72,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_WRITE: {
-        printf("ARG0: %d\n", argv[0]);
-        printf("ARG1: %d\n", argv[1]);
-        printf("ARG2: %d\n", argv[2]);
-        printf("ARG3: %d\n", argv[3]); 
-
-        
-        grab_stack_args(f, argv, 3);
-        write(argv[1], (const void *) argv[2], (unsigned)argv[3]);
-               
+        grab_stack_args(f, &argv[0], 3);
+        argv[1] = user_to_kernel_ptr((const void *) argv[1]);
+        f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]);
         break;
     }
     case SYS_SEEK: {
@@ -77,6 +84,12 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_CLOSE: {
+        break;
+    }
+    default: {
+        grab_stack_args(f, &argv[0], 3);
+        argv[1] = user_to_kernel_ptr((const void *) argv[1]);
+        f->eax = write(argv[0], (const void *) argv[1], (unsigned)argv[2]);
         break;
     }
   }
@@ -93,10 +106,39 @@ void exit (int status) {
     thread_exit();
 }
 
+int wait (pid_t pid) {
+    return process_wait(pid);
+}
+
+int user_to_kernel_ptr(const void *vaddr) {
+    if (!is_user_vaddr(vaddr)) {
+        thread_exit();
+        return 0;
+    }
+    void *ptr = pagedir_get_page(thread_current()->pagedir, vaddr);
+
+    if (!ptr) {
+        thread_exit();
+        return 0;
+    }
+    return (int) ptr;
+}
+
 struct file * get_file(int fd)
 {
+    struct thread *t = thread_current();
+    struct list_elem *e;
+    
+    for (e = list_begin(&t->file_list); e != list_end(&t->file_list);
+         e = list_next(e)) 
+    {   
+        struct p_file *pf = list_entry(e, struct p_file, elem);
+        if (fd == pf->fd)
+            return pf->file;
+    }
     return NULL;
 }
+
 int write (int fd, const void *buffer, unsigned length) {
     if(fd == STDOUT_FILENO)
     {
@@ -105,6 +147,10 @@ int write (int fd, const void *buffer, unsigned length) {
     }
     lock_acquire(&fs_lock);
     struct file * file_to_write = get_file(fd);
+    if (!file_to_write) {
+        lock_release(&fs_lock);
+        return -1;
+    }
     int bytes = file_write(file_to_write, buffer, length);
     lock_release(&fs_lock);
     return bytes;    

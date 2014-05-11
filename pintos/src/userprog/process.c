@@ -14,14 +14,19 @@
 #include "threads/flags.h"
 #include "threads/init.h"
 #include "threads/interrupt.h"
+#include "threads/malloc.h"
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
+/* MINE */
+#include "userprog/syscall.h"
+/* END MINE */
 
 //const int MAX_ARGS = 128;
 const int DEFAULT_ARGV = 2;
 const int WORD_SIZE = 4;
+
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp, char **saveptr);
 char ** cmdline;
@@ -41,24 +46,12 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
-/*MINE*/
+
+  /*MINE*/
   char * saveptr;
   file_name = strtok_r((char*)file_name, " " , &saveptr);
-/*END MINE*/
-//  int i = 0; 
-//   printf("THIS IS THE FILE_NAME: %s\n", file_name);
-//   cmdline = &file_name;
-/*
-  while(saveptr != '\0')
-  {
-     char * arg = strtok_r((char*)saveptr, " ", &saveptr);
-     cmdline = cmdline + i;
-     cmdline = arg;
-     ++i;
-     
-  }
-*/
-/*END_MINE*/
+  /*END MINE*/
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
@@ -139,18 +132,7 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  //struct list_elem *e;
-  //ASSERT(intr_get_level() == INTR_OFF);
-  //for(e = list_begin(&all_list); e != list_end(&all_list);
-  //    e = list_next (e))
-  //{
-  //  struct thread *t = list_entry(e, struct thread, allelem);
-  // if(t->tid == child_tid)
-  //  {
-  //      return t->status;
-  //  }
- // }
-  return -1;
+    process_wait_help(child_tid);
 }
 
 /* Free the current process's resources. */
@@ -510,53 +492,68 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   char * token; 
   char ** argv = malloc(DEFAULT_ARGV * sizeof(char *));
   char ** cont = malloc(DEFAULT_ARGV * sizeof(char *));
+  int counter;
   int i, argc = 0, arg_size = DEFAULT_ARGV;
   for(token = (char *) filename; token != NULL; token = strtok_r(NULL, " ", saveptr))
   {
     cont[argc] = token;
     argc++;
+
     if(argc >= arg_size) {
       arg_size *= 2;
       cont = realloc (cont, arg_size * sizeof(char *));
       argv = realloc(argv, arg_size * sizeof(char *));
     }
   }
+
   int j;
   for(j = argc - 1; j >= 0; j--)
   {
       *esp -= strlen(cont[j]) + 1;
+      counter += strlen(cont[j]) + 1;
       argv[j] = *esp;
-      memcpy(*esp, cont[j], strlen(cont[j] + 1));
+      memcpy(*esp, cont[j], strlen(cont[j]) + 1);
+    //memcpy(*esp, token, strlen(token)+1);
   }
   argv[argc] = 0;
+
   i = (size_t) * esp % WORD_SIZE;
   if(i)
   {
       *esp -= i;
+      counter += i;
       memcpy(*esp, & argv[argc], i);
   }
+
   int k;
-  for(k = argc; k >= 0; k--)
+  for (k = 0; k < argc; k++)
+//  for(k = argc; k >= 0; k--)
   {
       *esp -= sizeof(char *);
+      counter += sizeof(char *);
       memcpy(*esp, & argv[k], sizeof(char *));
   }
+
   /* Put argv on the stack */
   token = * esp;
   *esp -= sizeof(char**);
+  counter += sizeof(char**);
   memcpy(*esp, &token, sizeof(char**));
 
   /* Put argc on stack */
   *esp -= sizeof(int); 
+  counter += sizeof(int);
   memcpy(*esp, &argc, sizeof(int));
 
   /* Put fake address in stack */
   *esp -= sizeof(void *);
+  counter += sizeof(int);
   memcpy(*esp, &argv[argc], sizeof(void *));
-  free(argv); free(cont);
+  free(argv); 
+  free(cont);
 
   /* Call hex dump */
-  hex_dump(-1, esp, sizeof(esp), true);
+  hex_dump(0, *esp, counter, true);
 
   return success;
 }

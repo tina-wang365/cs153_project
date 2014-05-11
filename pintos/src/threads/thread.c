@@ -589,8 +589,12 @@ init_thread (struct thread *t, const char *name, int priority)
   t->true_priority = t->priority;
 
   t->magic = THREAD_MAGIC;
-//  list_insert_ordered (&all_list, &t->allelem, compare, NULL);
   list_push_back (&all_list, &t->allelem);
+
+  /* MINE */
+  list_init(&t->file_list);
+  t->fd = 2;
+  /* END MINE */ 
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -706,3 +710,19 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+int process_wait_help (tid_t child_tid UNUSED) {
+  
+    struct list_elem *e;
+
+    for(e = list_begin(&all_list); e != list_end(&all_list);
+        e = list_next (e))
+    {
+        struct thread *t = list_entry(e, struct thread, allelem);
+        if(t->tid == child_tid)
+        {
+            return t->status;
+        }
+    }
+    return -1;
+}

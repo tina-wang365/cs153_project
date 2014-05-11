@@ -102,8 +102,10 @@ struct thread
     struct list_elem elem;              /* List element. */
 
     struct list_elem sleep_elem;        /* Sleep Elem */ /*MINE*/
+    /* MINE */
     struct list file_list;
     int fd;
+    /* END MINE */
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -157,5 +159,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+/* MINE */
+int process_wait_help (tid_t child_tid UNUSED); 
+/* END MINE */
 
 #endif /* threads/thread.h */
