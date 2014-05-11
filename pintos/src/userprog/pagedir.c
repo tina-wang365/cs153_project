@@ -1,79 +1,79 @@
-#include "userprog/pagedir.h"
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
-#include "threads/init.h"
-#include "threads/pte.h"
-#include "threads/palloc.h"
+    #include "userprog/pagedir.h"
+    #include <stdbool.h>
+    #include <stddef.h>
+    #include <string.h>
+    #include "threads/init.h"
+    #include "threads/pte.h"
+    #include "threads/palloc.h"
 
-static uint32_t *active_pd (void);
-static void invalidate_pagedir (uint32_t *);
+    static uint32_t *active_pd (void);
+    static void invalidate_pagedir (uint32_t *);
 
-/* Creates a new page directory that has mappings for kernel
-   virtual addresses, but none for user virtual addresses.
-   Returns the new page directory, or a null pointer if memory
-   allocation fails. */
-uint32_t *
-pagedir_create (void) 
-{
-  uint32_t *pd = palloc_get_page (0);
-  if (pd != NULL)
-    memcpy (pd, init_page_dir, PGSIZE);
-  return pd;
-}
-
-/* Destroys page directory PD, freeing all the pages it
-   references. */
-void
-pagedir_destroy (uint32_t *pd) 
-{
-  uint32_t *pde;
-
-  if (pd == NULL)
-    return;
-
-  ASSERT (pd != init_page_dir);
-  for (pde = pd; pde < pd + pd_no (PHYS_BASE); pde++)
-    if (*pde & PTE_P) 
-      {
-        uint32_t *pt = pde_get_pt (*pde);
-        uint32_t *pte;
-        
-        for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
-          if (*pte & PTE_P) 
-            palloc_free_page (pte_get_page (*pte));
-        palloc_free_page (pt);
-      }
-  palloc_free_page (pd);
-}
-
-/* Returns the address of the page table entry for virtual
-   address VADDR in page directory PD.
-   If PD does not have a page table for VADDR, behavior depends
-   on CREATE.  If CREATE is true, then a new page table is
-   created and a pointer into it is returned.  Otherwise, a null
-   pointer is returned. */
-static uint32_t *
-lookup_page (uint32_t *pd, const void *vaddr, bool create)
-{
-  uint32_t *pt, *pde;
-
-  ASSERT (pd != NULL);
-
-  /* Shouldn't create new kernel virtual mappings. */
-  ASSERT (!create || is_user_vaddr (vaddr));
-
-  /* Check for a page table for VADDR.
-     If one is missing, create one if requested. */
-  pde = pd + pd_no (vaddr);
-  if (*pde == 0) 
+    /* Creates a new page directory that has mappings for kernel
+       virtual addresses, but none for user virtual addresses.
+       Returns the new page directory, or a null pointer if memory
+       allocation fails. */
+    uint32_t *
+    pagedir_create (void) 
     {
-      if (create)
+      uint32_t *pd = palloc_get_page (0);
+      if (pd != NULL)
+        memcpy (pd, init_page_dir, PGSIZE);
+      return pd;
+    }
+
+    /* Destroys page directory PD, freeing all the pages it
+       references. */
+    void
+    pagedir_destroy (uint32_t *pd) 
+    {
+      uint32_t *pde;
+
+      if (pd == NULL)
+        return;
+
+      ASSERT (pd != init_page_dir);
+      for (pde = pd; pde < pd + pd_no (PHYS_BASE); pde++)
+        if (*pde & PTE_P) 
+          {
+            uint32_t *pt = pde_get_pt (*pde);
+            uint32_t *pte;
+            
+            for (pte = pt; pte < pt + PGSIZE / sizeof *pte; pte++)
+              if (*pte & PTE_P) 
+                palloc_free_page (pte_get_page (*pte));
+            palloc_free_page (pt);
+          }
+      palloc_free_page (pd);
+    }
+
+    /* Returns the address of the page table entry for virtual
+       address VADDR in page directory PD.
+       If PD does not have a page table for VADDR, behavior depends
+       on CREATE.  If CREATE is true, then a new page table is
+       created and a pointer into it is returned.  Otherwise, a null
+       pointer is returned. */
+    static uint32_t *
+    lookup_page (uint32_t *pd, const void *vaddr, bool create)
+    {
+      uint32_t *pt, *pde;
+
+      ASSERT (pd != NULL);
+
+      /* Shouldn't create new kernel virtual mappings. */
+      ASSERT (!create || is_user_vaddr (vaddr));
+
+      /* Check for a page table for VADDR.
+         If one is missing, create one if requested. */
+      pde = pd + pd_no (vaddr);
+      if (*pde == 0) 
         {
-          pt = palloc_get_page (PAL_ZERO);
-          if (pt == NULL) 
-            return NULL; 
-      
+          if (create)
+            {
+              pt = palloc_get_page (PAL_ZERO);
+              if (pt == NULL) 
+                return NULL; 
+          
           *pde = pde_create (pt);
         }
       else

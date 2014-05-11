@@ -139,6 +139,17 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+  //struct list_elem *e;
+  //ASSERT(intr_get_level() == INTR_OFF);
+  //for(e = list_begin(&all_list); e != list_end(&all_list);
+  //    e = list_next (e))
+  //{
+  //  struct thread *t = list_entry(e, struct thread, allelem);
+  // if(t->tid == child_tid)
+  //  {
+  //      return t->status;
+  //  }
+ // }
   return -1;
 }
 
@@ -545,7 +556,7 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   free(argv); free(cont);
 
   /* Call hex dump */
-  //hex_dump(0, esp, sizeof(esp), true);
+  hex_dump(-1, esp, sizeof(esp), true);
 
   return success;
 }
