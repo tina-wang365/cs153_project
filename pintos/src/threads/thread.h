@@ -161,7 +161,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 /* MINE */
-int process_wait_help (tid_t child_tid UNUSED); 
+struct thread * find_thread(tid_t child_tid); 
 /* END MINE */
 
 #endif /* threads/thread.h */

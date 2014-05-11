@@ -711,18 +711,19 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-int process_wait_help (tid_t child_tid UNUSED) {
-  
+/* MINE */
+struct thread *
+find_thread(tid_t child_tid) {
     struct list_elem *e;
-
-    for(e = list_begin(&all_list); e != list_end(&all_list);
-        e = list_next (e))
-    {
+    
+    for (e = list_begin(&all_list); e != list_end(&all_list); e = list_next(e)) {
         struct thread *t = list_entry(e, struct thread, allelem);
-        if(t->tid == child_tid)
+        if (t->tid == child_tid)
         {
-            return t->status;
+            return t;
         }
     }
-    return -1;
+    return NULL;
 }
+
+/* END MINE */
