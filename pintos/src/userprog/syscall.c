@@ -101,9 +101,13 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_SEEK: {
+        grab_stack_args(f, &argv[0], 2);
+        seek(argv[0], (unsigned) argv[1]);       
         break;
     }
     case SYS_TELL: {
+        grab_stack_args(f, &argv[0], 1);
+        f->eax = tell((int) argv[0]);
         break;
     }
     case SYS_CLOSE: {
@@ -176,8 +180,6 @@ void p_close_file(int fd)
             list_remove(&pf->elem);
             free(pf);
             if( fd != -1) {
-            
-
                 return;
             }
         }
@@ -306,4 +308,32 @@ void close(int fd)
     lock_release(&fs_lock);
 }
 
+void seek(int fd, unsigned position)
+{
+    lock_acquire(&fs_lock);
+    struct file * f_temp = get_file(fd);
+    if(f_temp == NULL)
+    {
+        lock_release(&fs_lock);
+        return;
+    }
 
+    file_seek(f_temp, position);
+    lock_release(&fs_lock);
+    return;
+
+}
+
+unsigned tell(int fd)
+{
+    lock_acquire(&fs_lock);
+    struct file * f_temp = get_file(fd);
+    if(f_temp == NULL)
+    {
+        lock_release(&fs_lock);
+        return -1;
+    }
+    off_t offset = file_tell(f_temp);
+    lock_release(&fs_lock);
+    return offset;
+}

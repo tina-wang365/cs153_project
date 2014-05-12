@@ -495,7 +495,7 @@ setup_stack (void **esp, const char * filename, char **saveptr)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success) { 
-        *esp = PHYS_BASE;// - 12;
+        *esp = PHYS_BASE;
       }	
       else {
         palloc_free_page (kpage);
@@ -526,7 +526,6 @@ setup_stack (void **esp, const char * filename, char **saveptr)
       counter += strlen(cont[j]) + 1;
       argv[j] = *esp;
       memcpy(*esp, cont[j], strlen(cont[j]) + 1);
-    //memcpy(*esp, token, strlen(token)+1);
   }
   argv[argc] = 0;
 
