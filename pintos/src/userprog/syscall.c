@@ -1,24 +1,26 @@
 #include "userprog/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
+#include "lib/user/syscall.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
-/* MINE */
-#include "devices/shutdown.h" 
-#include "lib/user/syscall.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
+#include "devices/shutdown.h" 
 #include "filesys/file.h"
 #include "filesys/filesys.h"
 #include "userprog/process.h"
 #include "userprog/pagedir.h"
-#include "threads/malloc.h"
+
+#define USER_VADDR_BOTTOM (void *) 0x08048000
 
 static void syscall_handler (struct intr_frame *);
-struct lock fs_lock;
+
+/* Creates a lock that can be used by a filesys operations */
+struct lock fs_lock; 
 
 struct file * get_file(int fd UNUSED);
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args);
-#define USER_VADDR_BOTTOM (void *) 0x08048000
 
 struct p_file {
     struct file *file;
@@ -31,19 +33,19 @@ void validate_buf (void *buf, unsigned size);
 int user_to_kernel_ptr(const void *vaddr);
 int add_file(struct file * f);
 void p_close_file(int fd);
-/* END MINE */
+pid_t exec (const char *file);
+
 void
 syscall_init (void) 
 {
-  lock_init(&fs_lock); //mine
+  lock_init(&fs_lock); /* MINE */
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED) 
 {
-  int argv[3]; //mine
-  //validate_ptr((const void*)f->esp)
+  int argv[3]; /* MINE */
   switch ( * (int*) f->esp ) 
   {
     case SYS_HALT: {
@@ -56,6 +58,9 @@ syscall_handler (struct intr_frame *f UNUSED)
         break;
     }
     case SYS_EXEC: {
+        grab_stack_args(f, &argv[0], 1);
+        argv[0] = user_to_kernel_ptr((const void *) argv[0]);
+        f->eax = exec((const char *) argv[0]);
         break;
     }
     case SYS_WAIT: {
@@ -127,6 +132,10 @@ void exit (int status) {
     thread_exit();
 }
 
+pid_t exec (const char *file) {
+    return process_execute(file);
+}
+
 int wait (pid_t pid) {
     return process_wait(pid);
 }
@@ -142,6 +151,7 @@ int user_to_kernel_ptr(const void *vaddr) {
     return (int) ptr;
 }
 
+/* Gets a file from the list using the given file descriptor */
 struct file * get_file(int fd)
 {
     struct thread *t = thread_current();
@@ -157,6 +167,8 @@ struct file * get_file(int fd)
     return NULL;
 }
 
+/* Adds the given file to the file_list of the current thread. It also 
+ * updates the file descriptor */
 int add_file(struct file * f)
 {
     struct p_file *pf = malloc(sizeof(struct p_file));
@@ -167,6 +179,9 @@ int add_file(struct file * f)
     return pf->fd;
 }
 
+/* Iterates through the file list of the current thread. 
+ * If the file descriptor (fd) is found, close it. 
+ * It is also removed from the file list */
 void p_close_file(int fd)
 {
     struct thread * t = thread_current();
@@ -186,13 +201,13 @@ void p_close_file(int fd)
     }
 }
 int write (int fd, const void *buffer, unsigned length) {
-    //file descriptor for std out
+    /* File descriptor for std out */
     if(fd == STDOUT_FILENO)
     {
         putbuf(buffer, length);
         return length;
     }
-    /*write the contents of the buffer to the file to write*/
+    /* Write the contents of the buffer to file_to_write */
     lock_acquire(&fs_lock);
     struct file * file_to_write = get_file(fd);
     if (!file_to_write) {
@@ -230,7 +245,6 @@ int read (int fd, void * buffer, unsigned size)
         }
         return size;
     } 
-    //else {
     lock_acquire(&fs_lock);
     struct file * f_temp = get_file(fd);
     
@@ -241,11 +255,10 @@ int read (int fd, void * buffer, unsigned size)
     }
     int bytes = file_read(f_temp, buffer, size);
     lock_release(&fs_lock);
-//    return 0;
     return bytes;
-   // }
 }
 
+/* Gets the arguments needed off the stack */
 void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
 {
     int index;
@@ -258,12 +271,16 @@ void grab_stack_args(struct intr_frame * f, int * arg, int num_args)
     }
 }
 
+/* Checks that the virtual address is valid and in the appropriate range
+ * inside the virtual memory */
 void validate_ptr (const void *vaddr) {
-    if (!is_user_vaddr(vaddr) || (vaddr < USER_VADDR_BOTTOM) /*vaddr < (void*)0x08048000*/) {
+    if (!is_user_vaddr(vaddr) || (vaddr < USER_VADDR_BOTTOM)) {
         exit(-1);
     }
 }
 
+/* For each item in the buffer, it calls validate_ptr() to check the
+ * virtual address */
 void validate_buf (void *buf, unsigned size) {
     unsigned i;
     void *local_buf = (void *) buf;
@@ -279,6 +296,7 @@ bool create (const char *file, unsigned initial_size) {
     lock_release(&fs_lock);
     return status;
 }
+
 bool remove (const char *file) {
     lock_acquire(&fs_lock);
     bool status = filesys_remove(file);

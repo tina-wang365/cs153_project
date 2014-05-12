@@ -23,13 +23,13 @@
 #include "userprog/syscall.h"
 /* END MINE */
 
-//const int MAX_ARGS = 128;
 const int DEFAULT_ARGV = 2;
 const int WORD_SIZE = 4;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp, char **saveptr);
 char ** cmdline;
+
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
    before process_execute() returns.  Returns the new process's
@@ -67,32 +67,20 @@ start_process (void *file_name_)
   char *file_name = file_name_;
   struct intr_frame if_;
   bool success;
+
   /*MINE*/
   char * saveptr;
   file_name = strtok_r((char*) file_name, " ", &saveptr);
   /*END_MINE*/
+
   /* Initialize interrupt frame and load executable. */
   memset (&if_, 0, sizeof if_);
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-/*  size_t token_length = sizeof(*file_name);
-  if_.esp += token_length;
-  memcpy(if_.esp, &file_name, token_length);
-  hex_dump(0,if_.esp, sizeof(if_.esp), true);
-  strtok_r((char*) file_name, " ", &saveptr);
-  printf("STACK POINTER: %s\n", if_.esp);
-  while(*saveptr != '\0') {
-  	size_t token_length = sizeof(*file_name);
-  	if_.esp += token_length;
-	memcpy(if_.esp, &file_name, token_length);
-    hex_dump(0,if_.esp, sizeof(if_.esp), true);
-    strtok_r((char*) file_name, " ", &saveptr);
-    printf("STACK POINTER: %s\n", if_.esp);
- 
-   }
-  */
+
   success = load (file_name, &if_.eip, &if_.esp, &saveptr);
+
   /*MINE*/
   if(success)
   {
@@ -102,9 +90,8 @@ start_process (void *file_name_)
   {
 	thread_current()->load = LOAD_FAIL;
   }
-  //cp stands for "Child Process"
-  //sema_up(&thread_current()->cp->load_sema);
   /*END_MINE*/
+
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
@@ -358,7 +345,7 @@ load (const char *file_name, void (**eip) (void), void **esp, char **saveptr)
           break;
         }
     }
-  //char ** saveptr;
+
   /* Set up stack. */
   if (!setup_stack (esp, file_name, saveptr))
     goto done;
@@ -538,7 +525,6 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   }
 
   int k;
-  //for (k = 0; k < argc; k++)
   for(k = argc; k >= 0; --k)
   {
       *esp -= sizeof(char *);
@@ -565,7 +551,7 @@ setup_stack (void **esp, const char * filename, char **saveptr)
   free(cont);
 
   /* Call hex dump */
- // hex_dump(0, *esp, counter, true);
+  //hex_dump(0, *esp, counter, true);
 
   return success;
 }
